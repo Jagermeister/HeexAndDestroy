@@ -1,82 +1,47 @@
 <html>
-
-<head>
-    <title>hex</title>
-</head>
-
+    <head>
+        <title>hex</title>
+        <script src='./utility.js' type='text/javascript'></script>
+        <script src='./playfield.js' type='text/javascript'></script>
+        <script src='./chart.js' type='text/javascript'></script>
+    </head>
 <body bgcolor="#24AF69">
-    <canvas id="cellsCanvas" width="1080" height="720" style="background-color: rgb(130, 187, 236); float: left;"></canvas>
-    <br/>
+    <div id="canvasContainer"></div>
     <script type="text/javascript">
         'use strict';
-        //View
-        var canvas = document.getElementById("cellsCanvas");
-        canvas.tabIndex = 0;
-        canvas.focus();
-        var canvas_width = canvas.width;
-        var canvas_height = canvas.height;
-        var canvas_bounds = canvas.getBoundingClientRect();
+        var canvas_width = 1080,
+            canvas_height = 720;
+        var canvas = utility.canvasCreate("canvasContainer", "hexBackground", { width: canvas_width, height: canvas_height });
         var ctx = canvas.getContext("2d");
+
         let fontSize = 20;
-
-
-        function getParameterByName(name) {
-            var url = window.location.href;
-            name = name.replace(/[\[\]]/g, "\\$&");
-            var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)"),
-                results = regex.exec(url);
-            if (!results) return null;
-            if (!results[2]) return '';
-            return decodeURIComponent(results[2].replace(/\+/g, " "));
-        }
+        let charts = [];
+        let map = new Playfield({
+            x: 40, y: 40, size: 25
+        }, 18, 15);
 
         // MAP SETTINGS
-        let size = 25,
-            xOffset = 40,
-            yOffset = 40,
-            rowCount = 18,
-            columnCount = 15,
-            totalSpaces = rowCount * columnCount;
-
-        let playerColors = ["gray", "#9467bd", "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"],
-            playerCount = 9,
-            populationStartingValue = 4,
-            populationMaxValue = 10,
+        let populationMaxValue = 10,
             populationIncreaseMinimum = 1,
             populationIncreaseTerritoryDivider = 3;
-
-        let playerHexSight = null,
-            isAutoPlay = false;
-        // Layers of data
-        let cellOwner = new Array(rowCount * columnCount).fill(0),
-            cellPopulation = new Array(rowCount * columnCount).fill(0);
 
         var keyDownEvents = {};
         function init() {
             keyDownEvents = {
                 32: nextRound,
-                80: function () { isPaused = !isPaused; },
                 77: function () { isMapShown = !isMapShown; display(); }
             };
 
-            // Remove some spaces
-            for (let i = 0; i < totalSpaces * 0.35; i++) {
-                cellOwner[Math.floor(Math.random() * totalSpaces)] = -1;
-            }
-
-            isAutoPlay = !!getParameterByName('a');
-            // Place players
-            for (let i = isAutoPlay ? 1 : 0; i < playerCount; i++) {
-                let index = Math.floor(Math.random() * totalSpaces);
-                if (cellOwner[index] !== 0) {
-                    i--;
-                    continue;
-                }
-                cellOwner[index] = i + 1
-                cellPopulation[index] = populationStartingValue;
-            }
-
-            if (isAutoPlay) {
+            ctx.font = fontSize + 'px Courier New';
+            map.settingIsAutoPlay = !!utility.getParameterByName('a');
+            map.init();
+            charts.push(new Chart({
+                x: 720, y: 410, width: 1050-720, height: 545-410
+            }, "TERRITORY"));
+            charts.push(new Chart({
+                x: 720, y: 565, width: 1050-720, height: 700-565
+            }, "POPULATION"));
+            if (map.settingIsAutoPlay) {
                 nextRound();
             }
         }
@@ -85,67 +50,11 @@
             return Math.max(Math.floor(territoryCount / populationIncreaseTerritoryDivider), populationIncreaseMinimum);
         }
 
-
         // DEBUG
-        let isClickGridShown = false,
-            isMapShown = false;
-
+        let isMapShown = false;
         let turnCount = 0,
             areaHistory = {},
             popHistory = {};
-
-        let rowSelected = null,
-            colSelected = null,
-            neighborsSelected = null;
-
-        function polyNeighbors(x, y, allHexes = false) {
-            let neighbors = [],
-                isYEven = !(y % 2);
-            if (allHexes || cellOwner[y * columnCount + x] !== -1) {
-                if (x > 0) neighbors.push([x - 1, y]);
-                if (y > 0) {
-                    if (isYEven && x > 0) neighbors.push([x - 1, y - 1]);
-                    else if (!isYEven) neighbors.push([x, y - 1]);
-                }
-                if (y + 1 < rowCount) {
-                    if (isYEven && x > 0) neighbors.push([x - 1, y + 1]);
-                    else if (!isYEven) neighbors.push([x, y + 1]);
-                }
-                if (x + 1 < columnCount) neighbors.push([x + 1, y]);
-                if (y > 0) {
-                    if (!isYEven && x + 1 < columnCount) neighbors.push([x + 1, y - 1])
-                    else if (isYEven) neighbors.push([x, y - 1])
-                }
-                if (y + 1 < rowCount) {
-                    if (!isYEven && x + 1 < columnCount) neighbors.push([x + 1, y + 1]);
-                    else if (isYEven) neighbors.push([x, y + 1]);
-                }
-            }
-            return neighbors;
-        }
-
-        function xyToIndex(x, y) {
-            return y * columnCount + x;
-        }
-        function indexToXY(index) {
-            return [index % columnCount, Math.floor(index / columnCount)];
-        }
-
-        function playerVisionUpdate() {
-            playerHexSight = new Set();
-            for (let i = 0; i < totalSpaces; i++) {
-                let cellPlayer = cellOwner[i];
-                if (cellPlayer == 1) {
-                    playerHexSight = playerHexSight.add(i);
-                    playerHexSight = new Set([...playerHexSight, ...neighborIndexes(...indexToXY(i), true)]);
-                }
-            }
-        }
-
-        function neighborIndexes(x, y, allHexes = false) {
-            let neighbors = polyNeighbors(x, y, allHexes);
-            return neighbors.map(a => xyToIndex(...a));
-        }
 
         function conflictResolve(attacker, defender, log) {
             let oddsA = [
@@ -162,7 +71,6 @@
                 defenderWin = oddsD[defendWager - 1][attackWager - 1];
 
             let roll = Math.random() * 100;
-            //console.log('>>fight!', attackWager, 'vs', defendWager);
             let result = null,
                 losses = Math.min(attackWager, defendWager);
             if (roll < attackerWin) {
@@ -177,22 +85,22 @@
             return result;
         }
 
-        function moveFromNeighbors(playerId, x, y) {
-            let toIndex = xyToIndex(x, y),
-                cellPlayer = cellOwner[toIndex],
-                cellPop = cellPopulation[toIndex],
-                population = 0;
+        function moveFromNeighbors(playerId, cellIndex) {
+            let cellPlayer = map.dataLayerValueGet("owner", cellIndex);
             if (cellPlayer == -1 || cellPlayer == playerId) {
                 return;
             }
 
-            let fromIndexes = neighborIndexes(x, y);
+            let cellPop = map.dataLayerValueGet("population", cellIndex),
+                fromIndexes = map.neighbors(cellIndex),
+                population = 0;
             for (let i = 0, l = fromIndexes.length; i < l; i++) {
                 let c = fromIndexes[i];
-                if (cellOwner[c] == playerId) {
-                    let p = Math.round((cellPopulation[c] - 1) / 2);
-                    cellPopulation[c] -= p;
-                    population += p;
+                if (map.dataLayerValueGet("owner", c) == playerId) {
+                    let p = map.dataLayerValueGet("population", c),
+                        np = Math.round((p - 1) / 2);
+                    map.dataLayerValueUpdate("population", c, p - np);
+                    population += np;
                 }
             }
 
@@ -213,20 +121,19 @@
                     console.log('RESULT - Attacker: ', origA, '-', totalA, '=>', (origA - totalA), ', Defender: ', origD, '-', totalD, '=>', (origD - totalD));
                 }
                 if (cellPop === 0) {
-                    cellOwner[toIndex] = playerId;
-                    cellPopulation[toIndex] = population;
+                    map.dataLayerValueUpdate("owner", cellIndex, playerId);
+                    map.dataLayerValueUpdate("population", cellIndex, population);
                 } else {
-                    cellPopulation[toIndex] = cellPop;
+                    map.dataLayerValueUpdate("population", cellIndex, cellPop);
                 }
             }
         }
 
         let endOfGameCallback = null;
         function nextRound() {
-            //console.log("next round")
             let playerIndexes = {};
-            for (let i = 0; i < totalSpaces; i++) {
-                let cellPlayer = cellOwner[i];
+            for (let i = 0; i < map.cellCount; i++) {
+                let cellPlayer = map.dataLayerValueGet("owner", i);
                 if (cellPlayer > 0) {
                     playerIndexes[cellPlayer] = playerIndexes[cellPlayer] || [];
                     playerIndexes[cellPlayer].push(i);
@@ -240,63 +147,62 @@
             }
 
             // moves
-            for (let p = 1; p < playerCount; p++) {
+            for (let p = 1; p < map.settingPlayerCount; p++) {
                 let indexes = playerIndexes[p + 1] || [];
                 for (let i = 0, l = indexes.length; i < l; i++) {
                     let c = indexes[i];
-                    let neighbors = neighborIndexes(...indexToXY(c)).filter(v => cellOwner[v] != -1 && cellOwner[v] != (p + 1));
+                    let neighbors = map.neighbors(c).filter(v => map.dataLayerValueGet("owner", v) != (p + 1));
                     if (neighbors.length) {
                         let roll = Math.random();
-                        //console.log(p, roll.toFixed(2), neighbors);
                         if (roll > 0.3) {
                             let newIndex = neighbors[Math.floor(Math.random() * neighbors.length)];
-                            //console.log(p, 'moved', ...indexToXY(c), '=>', newIndex, ...indexToXY(newIndex))
-                            moveFromNeighbors(p + 1, ...indexToXY(newIndex));
+                            moveFromNeighbors(p + 1, newIndex);
                         }
                     }
                 }
             }
 
             playerIndexes = {};
-            for (let i = 0; i < totalSpaces; i++) {
-                let cellPlayer = cellOwner[i];
+            for (let i = 0; i < map.cellCount; i++) {
+                let cellPlayer = map.dataLayerValueGet("owner", i);
                 if (cellPlayer > 0) {
                     playerIndexes[cellPlayer] = playerIndexes[cellPlayer] || [];
                     playerIndexes[cellPlayer].push(i);
                 }
             }
             // grow based on area
-            for (let i = 0; i < playerCount; i++) {
+            for (let i = 0; i < map.settingPlayerCount; i++) {
                 let indexes = playerIndexes[i + 1],
                     territoryCount = indexes ? indexes.length : 0,
                     populationNew = 0,
                     playerPopulation = 0;
                 if (indexes) {
                     populationNew = populationIncreaseByTerritory(indexes.length);
-                    playerPopulation = playerIndexes[i + 1].map(d => cellPopulation[d]).reduce((a, b) => a + b, 0);
-                    indexes = indexes.filter(c => cellPopulation[c] < populationMaxValue);
+                    playerPopulation = playerIndexes[i + 1].map(d => map.dataLayerValueGet("population", d)).reduce((a, b) => a + b, 0);
+                    indexes = indexes.filter(c => map.dataLayerValueGet("population", c) < populationMaxValue);
                 }
                 if (indexes) {
                     while (populationNew > 0 && playerPopulation < (territoryCount * populationMaxValue)) {
-                        let c = indexes[Math.floor(Math.random() * indexes.length)]
-                        if (cellPopulation[c] < populationMaxValue) {
-                            cellPopulation[c]++;
+                        let c = indexes[Math.floor(Math.random() * indexes.length)],
+                            p = map.dataLayerValueGet("population", c);
+                        if (p < populationMaxValue) {
+                            map.dataLayerValueUpdate("population", c, p+1);
                             playerPopulation++;
                             populationNew--;
                         }
                     }
                 }
 
-                areaHistory[i] = areaHistory[i] || [];
-                areaHistory[i].push(territoryCount);
-                popHistory[i] = popHistory[i] || [];
-                popHistory[i].push(playerPopulation);
+                charts[0].data[i] = charts[0].data[i] || [];
+                charts[0].data[i].push(territoryCount);
+                charts[1].data[i] = charts[1].data[i] || [];
+                charts[1].data[i].push(playerPopulation);
             }
 
             turnCount++;
             if (turnCount % 100 == 0) {
-                populationMaxValue += 0.5;
-                if (turnCount % 500 == 0) {
+                populationMaxValue++;
+                if (turnCount % 250 == 0) {
                     populationMaxValue++;
                 }
             }
@@ -307,250 +213,69 @@
             }
         }
 
-        //Handle User Input
-        var mouseX = null;
-        var mouseY = null;
-
-        function colToX(col, row) {
-            return xOffset - (Math.sqrt(3) * size / 2) + Math.sqrt(3) * size * (col + (row % 2 == 1 ? 0.5 : 1));
-        }
-        function rowToY(row) {
-            return yOffset - size * 3 / 4 + (row + 1) * (size * 3 / 2);
-        }
-
-        function yToRow(y) {
-            return Math.floor((y - yOffset + size * 3 / 4) / (size * 3 / 2));
-        }
-        function xToCol(x, row) {
-            return Math.floor((x - xOffset + (Math.sqrt(3) * size / 2)) / (Math.sqrt(3) * size) - (row % 2 == 1 ? 0.5 : 0));
-        }
-
         canvas.addEventListener("mousedown", function (event) {
-            mouseX = event.clientX - canvas_bounds.left;
-            mouseY = event.clientY - canvas_bounds.top;
-            let row = yToRow(mouseY),
-                col = xToCol(mouseX, yToRow(mouseY));
-            //console.log(mouseX, mouseY, col, ',', row);
-            if (row >= 0 && row < rowCount && col >= 0 && col < columnCount) {
-                rowSelected = row;
-                colSelected = col;
-                neighborsSelected = polyNeighbors(col, row);
-                moveFromNeighbors(1, col, row)
-            } else {
-                rowSelected = colSelected = neighborsSelected = null;
+            let canvas_bounds = canvas.getBoundingClientRect();
+            let row = map.yToRow(event.clientY - canvas_bounds.top),
+                col = map.xToCol(event.clientX - canvas_bounds.left, row);
+            if (row >= 0 && row < map.rowCount && col >= 0 && col < map.colCount) {
+                moveFromNeighbors(1, map.xyToIndex(col, row))
+                display();
             }
-
-            display();
         });
+
         window.addEventListener("keydown", function (event) {
             let f = keyDownEvents[event.keyCode.toString()];
             if (f) { f(); }
         });
 
-        var game_delta = null;
-        var isPaused = false;
-        function update(delta) {
-            if (!isPaused) {
-
-            }
-
-            game_delta = delta;
-        }
-
         function display() {
-            playerVisionUpdate();
-            ctx.font = fontSize + 'px Courier New';
+            map.playerVisionUpdate();
             ctx.clearRect(0, 0, canvas_width, canvas_height);
-            let polySides = 6,
-                isPolyPointedTop = true,
-                degreeOffset = 360 / polySides,
-                polyDegreeOffset = isPolyPointedTop ? degreeOffset / 2 : 0
-            let x = xOffset,
-                y = yOffset;
-            ctx.strokeStyle = '#F0F8FF';
-            for (let hy = 0; hy < rowCount; hy++) {
-                if (isClickGridShown) {
-                    ctx.beginPath();
-                    ctx.moveTo(x - Math.sqrt(3) * size / 2, rowToY(hy));
-                    ctx.lineTo(x - Math.sqrt(3) * size / 2 + rowCount * Math.sqrt(3) * size, rowToY(hy));
-                    ctx.stroke();
-                }
-                for (let hx = 0; hx < columnCount; hx++) {
-                    if (isClickGridShown) {
-                        ctx.beginPath();
-                        ctx.moveTo(colToX(hx, hy), rowToY(hy - 1));
-                        ctx.lineTo(colToX(hx, hy), rowToY(hy));
-                        ctx.stroke();
-                    }
-                    let cellIndex = hy * columnCount + hx,
-                        cellPlayer = cellOwner[cellIndex];
-                    if (isMapShown || playerHexSight.has(cellIndex)) {
-                        ctx.beginPath();
-                        for (let i = 0; i < polySides; i++) {
-                            let angle_rad = (Math.PI / 180) * (degreeOffset * i + polyDegreeOffset);
-                            ctx.lineTo(x + size * Math.cos(angle_rad), y + size * Math.sin(angle_rad));
-                        }
-                        ctx.closePath();
-                        ctx.stroke();
-                        ctx.fillStyle = cellPlayer == -1 ? 'rgb(224, 255, 255)' : playerColors[cellPlayer];
-                        ctx.fill();
+            map.display(ctx, isMapShown);
 
-                        if (cellPlayer > 0) {
-                            ctx.fillStyle = 'white';
-                            let w = ctx.measureText(cellPopulation[cellIndex]);
-                            ctx.fillText(cellPopulation[cellIndex], x - w.width / 2, y + fontSize / 3);
-                        }
-                        /*if (neighborsSelected && neighborsSelected.some(a => a[0] == hx && a[1] == hy)) {
-                            ctx.fillStyle = 'steelblue';
-                            ctx.fill();
-                        }*/
-                    }
-                    //ctx.strokeText(cellIndex, x-size, y)
-                    x += Math.sqrt(3) * size;
-                }
-                y += size * 1.5;
-                x -= Math.sqrt(3) * size * (columnCount + (hy % 2 == 0 ? -0.5 : 0.5));
-            }
-
-            // X: 720 -> 1080 DEBUG AREA
             let playerIndexes = {},
                 playerPopulation = {};
-            for (let i = 0; i < totalSpaces; i++) {
-                let cellPlayer = cellOwner[i];
+            for (let i = 0; i < map.cellCount; i++) {
+                let cellPlayer = map.dataLayerValueGet("owner", i);
                 if (cellPlayer > 0) {
                     playerIndexes[cellPlayer] = playerIndexes[cellPlayer] || [];
                     playerIndexes[cellPlayer].push(i);
                     playerPopulation[cellPlayer] = playerPopulation[cellPlayer] || 0;
-                    playerPopulation[cellPlayer] += cellPopulation[i];
+                    playerPopulation[cellPlayer] += map.dataLayerValueGet("population", i);
                 }
             }
 
-            let byPopulation = (Object.keys(playerPopulation).sort((a, b) => playerPopulation[b] - playerPopulation[a]));
+            // LEADERBOARD
+            ctx.strokeStyle = '#F0F8FF';
             let byTerritory = (Object.keys(playerIndexes).sort((a, b) => playerIndexes[b].length - playerIndexes[a].length));
-            strokeCanvasText(ctx, "P       Area  Pop.  PerTurn", 750, 25)
+            utility.strokeText(ctx, "P       Area  Pop.  PerTurn", 750, 25)
             ctx.beginPath();
             ctx.moveTo(750, 32);
             ctx.lineTo(1075, 32);
             ctx.stroke();
             for (let i = 0, l = byTerritory.length; i < l; i++) {
                 let p = byTerritory[i];
-                ctx.strokeStyle = playerColors[p * 1];
-                strokeCanvasText(ctx, "P" + p + "       " + playerIndexes[p * 1].length, 750, 25 * (i + 2));
-                strokeCanvasText(ctx, playerPopulation[p * 1], 965, 25 * (i + 2), true);
-                strokeCanvasText(ctx, "+" + populationIncreaseByTerritory(playerIndexes[p * 1].length), 1020, 25 * (i + 2));
+                ctx.strokeStyle = utility.colors[p * 1];
+                utility.strokeText(ctx, "P" + p + "       " + playerIndexes[p * 1].length, 750, 25 * (i + 2));
+                utility.strokeText(ctx, playerPopulation[p * 1], 965, 25 * (i + 2), true);
+                utility.strokeText(ctx, "+" + populationIncreaseByTerritory(playerIndexes[p * 1].length), 1020, 25 * (i + 2));
             }
 
-            // INSTRUCTIONS
             ctx.strokeStyle = 'black';
-            strokeCanvasText(ctx, "You are PURPLE. Click an empty", 705, 200 + fontSize *4);
-            strokeCanvasText(ctx, "cell to move/attack with half", 705, 200 + fontSize * 5);
-            strokeCanvasText(ctx, "population from nearby cells.", 705, 200 + fontSize * 6);
-            strokeCanvasText(ctx, "SPACEBAR advances one turn.", 705, 200 + fontSize * 7);
-
-            strokeCanvasText(ctx, "Turn: " +turnCount, 705, 200 + fontSize * 9);
-
-            // TERRITORY
-            let xStart = 720,
-                xEnd = 1050,
-                yEnd = 410,
-                yStart = 545;
-            //PROJECTION
-            let xDomainStart = 0,
-                xDomainEnd = 20,
-                yDomainEnd = 0;
-            function xx(domain) {
-                return xStart + (xEnd - xStart) * (domain / xDomainEnd);
+            utility.strokeText(ctx, "Turn: " +turnCount, 750, 270);
+            utility.strokeText(ctx, "You are PURPLE. Click an empty", 705, 200 + fontSize *5);
+            utility.strokeText(ctx, "cell to move/attack with half", 705, 200 + fontSize * 6);
+            utility.strokeText(ctx, "population from nearby cells.", 705, 200 + fontSize * 7);
+            utility.strokeText(ctx, "SPACEBAR advances one turn.", 705, 200 + fontSize * 8);
+            for (let i = 0, l = charts.length; i < l; i++) {
+                charts[i].display(ctx);
             }
-            function yy(domain) {
-                return yEnd + (yStart - yEnd) * (1 - domain / yDomainEnd);
-            }
-            if (areaHistory[1] && areaHistory[1].length > 1) {
-                yDomainEnd = Object.keys(areaHistory).map(k => areaHistory[k].reduce((p, c) => Math.max(p, c))).reduce((p, c) => Math.max(p, c));
-                xDomainEnd = turnCount;
-                for (let i = 0; i < playerCount; i++) {
-                    ctx.strokeStyle = playerColors[i + 1];
-                    ctx.beginPath();
-                    let last20Pop = areaHistory[i].slice();//.slice(-Math.min(areaHistory[i].length, xDomainEnd));
-                    //console.log(last20Pop);
-                    let oldest = last20Pop.shift();
-                    ctx.moveTo(xx(0), yy(oldest));
-                    for (let a = 0, l = last20Pop.length; a < l; a++) {
-                        ctx.lineTo(xx(a + 1), yy(last20Pop[a]));
-                    }
-                    ctx.stroke();
-                }
-
-                // Axis
-                ctx.beginPath();
-                ctx.strokeStyle = 'black';
-                strokeCanvasText(ctx, "TERRITORY", xStart + 50, yEnd);
-                strokeCanvasText(ctx, yDomainEnd, xStart - 2, yEnd + fontSize / 2, true);
-                ctx.moveTo(xStart, yEnd);
-                ctx.lineTo(xStart, yStart);
-                ctx.lineTo(xEnd, yStart);
-                ctx.stroke();
-            }
-
-            // POPULATION
-            xStart = 720,
-                xEnd = 1050,
-                yEnd = 565,
-                yStart = 700;
-            //PROJECTION
-            xDomainStart = 0,
-                xDomainEnd = 20,
-                yDomainEnd = 0;
-            if (popHistory[1] && popHistory[1].length > 1) {
-                yDomainEnd = Object.keys(popHistory).map(k => popHistory[k].reduce((p, c) => Math.max(p, c))).reduce((p, c) => Math.max(p, c));
-                xDomainEnd = turnCount;
-                for (let i = 0; i < playerCount; i++) {
-                    ctx.strokeStyle = playerColors[i + 1];
-                    ctx.beginPath();
-                    let last20Pop = popHistory[i].slice();//.slice(-Math.min(popHistory[i].length, xDomainEnd));
-                    //console.log(last20Pop);
-                    let oldest = last20Pop.shift();
-                    ctx.moveTo(xx(0), yy(oldest));
-                    for (let a = 0, l = last20Pop.length; a < l; a++) {
-                        ctx.lineTo(xx(a + 1), yy(last20Pop[a]));
-                    }
-                    ctx.stroke();
-                }
-                // Axis
-                ctx.beginPath();
-                ctx.strokeStyle = 'black';
-                strokeCanvasText(ctx, "POPULATION", xStart + 50, yEnd);
-                strokeCanvasText(ctx, yDomainEnd, xStart - 2, yEnd + fontSize / 2, true);
-                ctx.moveTo(xStart, yEnd);
-                ctx.lineTo(xStart, yStart);
-                ctx.lineTo(xEnd, yStart);
-                ctx.stroke();
-            }
-        }
-
-        function strokeCanvasText(context, text, x, y, alignRight) {
-            if (alignRight) {
-                let mText = context.measureText(text);
-                x -= mText.width;
-            }
-            context.strokeText(text, x, y);
-        }
-
-        function strokeCanvasConditionalText(context, text, x, y, alignRight, style, condition, conditionalStyle) {
-            context.strokeStyle = condition ? conditionalStyle : style;
-            strokeCanvasText(context, text, x, y, alignRight);
         }
 
         window.onload = function () {
             init();
-            //var mainloop_updateLast = performance.now();
-            //(function mainLoop(nowTime) {
-            //    update(nowTime - mainloop_updateLast);
             display();
-            //    mainloop_updateLast = nowTime;
-            //    requestAnimationFrame(mainLoop);
-            //})(performance.now());
         }
     </script>
 </body>
-
 </html>
