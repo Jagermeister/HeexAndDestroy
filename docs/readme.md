@@ -10,3 +10,9 @@ _risk-style combat trying to eliminate all others_
   - Space will advance to next turn, generating you population based on territory
   - Game ends when only one color remains
   - Fog of war hides the map layout 
+
+![Single Player](./progress.PNG)
+
+![Playing](./playing.PNG)
+
+![End](./end.PNG)
