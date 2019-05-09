@@ -16,3 +16,10 @@ _risk-style combat trying to eliminate all others_
 ![Playing](./playing.PNG)
 
 ![End](./end.PNG)
+
+
+## Future Features
+- Improved graphics
+- Animations on turn action
+- Summary stats on each fight and round
+- Explore building placement
