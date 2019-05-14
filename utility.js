@@ -1,6 +1,18 @@
 'use strict';
 
 var utility = {};
+utility.colors = ["gray", "#9467bd", "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"];
+
+utility.getParameterByName = function(name) {
+    var url = window.location.href;
+    name = name.replace(/[\[\]]/g, "\\$&");
+    var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)"),
+        results = regex.exec(url);
+    if (!results) return null;
+    if (!results[2]) return '';
+    return decodeURIComponent(results[2].replace(/\+/g, " "));
+};
+
 utility.canvasCreate = function(containerId, id, dimensions) {
     let container = document.getElementById(containerId);
     if (container) {
@@ -15,19 +27,15 @@ utility.canvasCreate = function(containerId, id, dimensions) {
     }
 };
 
-utility.getParameterByName = function(name) {
-    var url = window.location.href;
-    name = name.replace(/[\[\]]/g, "\\$&");
-    var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)"),
-        results = regex.exec(url);
-    if (!results) return null;
-    if (!results[2]) return '';
-    return decodeURIComponent(results[2].replace(/\+/g, " "));
-};
-
-utility.colors = ["gray", "#9467bd", "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"];
-
 utility.strokeText = function(ctx, text, x, y, isAlignedRight) {
     if (isAlignedRight) x -= ctx.measureText(text).width;
     ctx.strokeText(text, x, y);
+};
+
+utility.strokeLines = function(ctx, data) {
+    ctx.moveTo(...data.shift());
+    for (let i = 0, l = data.length; i < l; i++) {
+        ctx.lineTo(...data[i]);
+    }
+    ctx.stroke();
 };

@@ -22,14 +22,16 @@ class Chart {
 
     display(ctx) {
         if (this.data && this.data[1] && this.data[1].length > 1) {
-            let keys = Object.keys(this.data);
+            let keys = Object.keys(this.data),
+                x = this.x,
+                y = this.y;
             this.yDomainEnd = keys
                 .map(k => this.data[k].reduce((p, c) => Math.max(p, c)))
                 .reduce((p, c) => Math.max(p, c));
             this.xDomainEnd = this.data[1].length;
-            for (let i = 0; i < keys.length; i++) {
-                let data = this.data[i].slice();
-                ctx.strokeStyle = utility.colors[i + 1];
+            for (let p = 0; p < keys.length; p++) {
+                let data = this.data[p].slice();
+                ctx.strokeStyle = utility.colors[p + 1];
                 ctx.beginPath();
                 ctx.moveTo(this.xRange(0), this.yRange(data.shift()));
                 for (let a = 0, l = data.length; a < l; a++) {
@@ -40,12 +42,9 @@ class Chart {
 
             ctx.beginPath();
             ctx.strokeStyle = 'black';
-            utility.strokeText(ctx, this.title, this.x + 50, this.y);
-            utility.strokeText(ctx, this.yDomainEnd, this.x - 2, this.y + fontSize / 2, true);
-            ctx.moveTo(this.x, this.y);
-            ctx.lineTo(this.x, this.y + this.height);
-            ctx.lineTo(this.x + this.width, this.y + this.height);
-            ctx.stroke();
+            utility.strokeText(ctx, this.title, x + 50, y);
+            utility.strokeText(ctx, this.yDomainEnd, x - 2, y + fontSize / 2, true);
+            utility.strokeLines(ctx, [[x, y], [x, y + this.height], [x + this.width, y + this.height]]);
         }
     }
 }
